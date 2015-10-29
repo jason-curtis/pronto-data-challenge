@@ -134,11 +134,12 @@ function initAnimation(map, trips, stationsById) {
   
   var directionsService = new google.maps.DirectionsService;
   
+  var delay=500; // milliseconds to prevent hitting Google API limit for the time being
 
   function calcRouteLoop(i){
     if (i < 500){
       calculateAndDisplayRoute(trips[i], i)
-      setTimeout(calcRouteLoop, 100, i + 1)
+      setTimeout(calcRouteLoop, delay, i + 1)
     }
   }
   calcRouteLoop(0);
