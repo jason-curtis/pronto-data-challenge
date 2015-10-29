@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Geolocation</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+#map {
+    height: 100%;
+}
+</style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script src="js/lib/lodash.min.js">
+</script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js">
+</script>
+    <script>
+
+function makeStationUseful(station) {
+  // Available attrs: 
+  // dockcount: "18"
+  // id: "1"
+  // lat: "47.618418"
+  // long: "-122.350964"
+  // name: "3rd Ave & Broad St"
+  // online: "10/13/2014"
+  // terminal: "BT-01"
+
+  return {
+      lat: Number(station.lat),
+      lon: Number(station.long),
+      name: station.name,
+      id: station.terminal
+  }
+}
+function getDataAndInitMap() {
+  $.getJSON(
+    "data/json/2015_station_data.json", 
+    function(stations) {
+        initMap(_.map(stations, makeStationUseful));
+    }
+  );
+};
+function initMap(stations) {
+  var styles = [
+    {
+      stylers: [
+        { hue: "#00ffe6" },
+        { saturation: -20 }
+      ]
+    },{
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [
+        { lightness: 100 },
+        { visibility: "simplified" }
+      ]
+    },{
+      featureType: "road",
+      elementType: "labels",
+      stylers: [
+        { visibility: "off" }
+      ]
+    }
+  ];
+  var map = new google.maps.Map(document.getElementById('map'),{
+      center: {
+          lat: 47.6186455,
+          lng: -122.3143096
+      },
+      zoom: 16,
+      styles: styles
+  });
+  var bounds = new google.maps.LatLngBounds(
+    new google.maps.LatLng(_.min(stations, 'lat').lat, _.min(stations, 'lon').lon),
+    new google.maps.LatLng(_.max(stations, 'lat').lat, _.max(stations, 'lon').lon)
+  );
+  map.fitBounds(bounds);
+
+  // Draw stations on the map
+  stations.map(function(station) {
+      new google.maps.Marker({
+          position: {
+              lat: Number(station.lat),
+              lng: Number(station.lon)
+          },
+          map: map,
+          title: station.name,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            strokeColor: '#8EDD65',
+            strokeOpacity: .9,
+            strokeWeight: 2
+          },
+      });
+  }
+  )
+  var stationsById = {};
+  _.forEach(stations, function(station) {stationsById[station.id] = station})
+
+  $.getJSON(
+    "data/json/2015_trip_data.json", 
+    function(trips) {
+        initAnimation(map, _.map(trips, makeTripUseful), stationsById);
+    }
+  );
+
+};
+
+function makeTripUseful(trip) {
+  // Full list of available attrs: 
+  // trip_id,starttime,stoptime,bikeid,tripduration,from_station_name,to_station_name,from_station_id,to_station_id,usertype,gender,birthyear
+  // times are in the format "10/13/2014 10:31", God bless America
+  return {
+    fromStationId: trip.from_station_id,
+    toStationId: trip.to_station_id,
+    duration: Number(trip.tripduration),
+  }
+};
+
+function initAnimation(map, trips, stationsById) {
+  console.log('trip')
+  var trip = trips[0];
+
+  
+  var directionsService = new google.maps.DirectionsService;
+  
+
+  function calcRouteLoop(i){
+    if (i < 500){
+      calculateAndDisplayRoute(trips[i], i)
+      setTimeout(calcRouteLoop, 100, i + 1)
+    }
+  }
+  calcRouteLoop(0);
+  function calculateAndDisplayRoute(trip, i) {
+    var fromStation = stationsById[trip.fromStationId];
+    var toStation = stationsById[trip.toStationId];
+    var directionsDisplay = new google.maps.DirectionsRenderer({
+      map: map,
+      preserveViewport: true,
+      suppressMarkers: true,
+      clickable: false,
+      polylineOptions: {
+        strokeWeight: 0.5,
+        strokeOpacity: 0.9,
+        strokeColor: i,
+        zIndex: 10000
+      }
+    });
+    directionsService.route({
+      origin: fromStation.lat + ', ' + fromStation.lon,
+      destination: toStation.lat + ', ' + toStation.lon,
+      travelMode: google.maps.TravelMode.BICYCLING
+    }, function(response, status) {
+      if (status === google.maps.DirectionsStatus.OK) {
+        directionsDisplay.setDirections(response);
+      } else {
+        window.alert('Directions request failed due to ' + status);
+      }
+    });
+  }
+};
+
+</script>
+    <script src="https://maps.googleapis.com/maps/api/js?&callback=getDataAndInitMap"
+        async defer>
+</script>
+  </body>
+</html>
