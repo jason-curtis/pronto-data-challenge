@@ -32,6 +32,11 @@ html, body {
 </script>
     <script>
 
+colors = {
+  prontoGreen: '#8EDD65',
+  prontoBlue: '#68D2DF',
+  prontoDarkBlue: '#003B49'
+}
 function makeStationUseful(station) {
   // Available attrs: 
   // dockcount: "18"
@@ -61,17 +66,19 @@ function initMap(stations) {
   var styles = [
     {
       stylers: [
-        { hue: "#00ffe6" },
+        { hue: "white" },
         { saturation: -20 }
       ]
-    },{
+    },
+    {
       featureType: "road",
       elementType: "geometry",
       stylers: [
-        { lightness: 100 },
-        { visibility: "simplified" }
+//         { lightness: 0 },
+//         { visibility: "simplified" }
       ]
-    },{
+    },
+    {
       featureType: "road",
       elementType: "labels",
       stylers: [
@@ -85,13 +92,17 @@ function initMap(stations) {
           lng: -122.3143096
       },
       zoom: 16,
-      styles: styles
+      styles: styles,
+      mapTypeId: google.maps.MapTypeId.TERRAIN,
   });
   var bounds = new google.maps.LatLngBounds(
     new google.maps.LatLng(_.min(stations, 'lat').lat, _.min(stations, 'lon').lon),
     new google.maps.LatLng(_.max(stations, 'lat').lat, _.max(stations, 'lon').lon)
   );
   map.fitBounds(bounds);
+
+  var bikeLayer = new google.maps.BicyclingLayer();
+  bikeLayer.setMap(map);
 
   // Draw stations on the map
   stations.map(function(station) {
@@ -105,7 +116,7 @@ function initMap(stations) {
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 10,
-            strokeColor: '#8EDD65',
+            strokeColor: colors.prontoGreen,
             strokeOpacity: .9,
             strokeWeight: 2
           },
@@ -136,7 +147,6 @@ function makeTripUseful(trip) {
 };
 
 function initAnimation(map, trips, stationsById) {
-  console.log('trip')
   var trip = trips[0];
 
   
@@ -145,70 +155,88 @@ function initAnimation(map, trips, stationsById) {
   var delay=500; // milliseconds to prevent hitting Google API limit for the time being
   var startTrip=10000 // the first several trips are boring :p
   var maxTrips=10500 // also put a max on this
-  var routeCache = {}
+  var polyLines = {}
+  var riderCounts = {}
   var cacheHits = 0
   var cacheMisses = 0
   var apiErrors = 0
-  
-  calculateAndDisplayRoute(0)
-  function calculateAndDisplayRoute(i) {
-    function another(delay, retry){
-      setTimeout(calculateAndDisplayRoute, delay, retry ? i : i+1);
+
+  var arrowPct = 0;
+  var arrowPctStep = 0.01;
+
+  var maxRiders = 10 // Max number of riders to show on one path at a time
+  var riderSeparation = 10 // in percent
+
+  function getPolylineOptions(path, offsetFraction, riderCount) {  
+    var lineSymbol = {
+      path: google.maps.SymbolPath.FORWARD_OPEN_ARROW
+    };
+    function getIcon(riderIndex) {
+      return {
+        icon: lineSymbol,
+        offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
+      }
     }
-    console.log(i)
-    var trip = trips[i]
-    console.log(trip)
+    var icons = _.times(Math.min(riderCount, maxRiders), getIcon)
+    return {
+      map: map,
+      path: path,
+      clickable: false, // Maybe this will ease some of the rendering load?
+      icons: icons,
+      strokeColor: colors.prontoDarkBlue,
+      strokeOpacity: 1,
+      strokeWeight: 1,
+      visible: riderCount > 0,
+    }
+  }
+  _.each(trips.slice(0,1000), registerTrip)
+  function registerTrip(trip, i) {
     var fromStation = stationsById[trip.fromStationId];
     var toStation = stationsById[trip.toStationId];
-    if (fromStation == toStation) {
-      another(0)
+    if (!toStation || !fromStation || (fromStation == toStation)){
+      // not interested in special stuff like the bike share garage, or routes that end where they started
       return;
     }
+    riderCounts[fromStation.id+toStation.id] = 
+      riderCounts[fromStation.id+toStation.id] ?
+      riderCounts[fromStation.id+toStation.id] + 1 : 1;
+  }
 
-    if (_.isUndefined(routeCache[fromStation.id + toStation.id])) {
-      cacheMisses += 1;
-      console.log('cache miss ' + cacheMisses)
-      directionsService.route({
-        origin: fromStation.lat + ', ' + fromStation.lon,
-        destination: toStation.lat + ', ' + toStation.lon,
-        travelMode: google.maps.TravelMode.BICYCLING
-      }, function(response, status) {
-        if (status === google.maps.DirectionsStatus.OK) {
-          routeCache[fromStation.id + toStation.id] = response;
-          renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
-          another(500)
-        } else {
-          console.log('Directions request failed due to ' + status);
-          another(2500, true)
-        }
-      });
-    } else {
-      cacheHits += 1;
-      console.log('cache hit ' + cacheHits);
-      renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
-      another(0)
-    }
-    
+  function getPath(fromStation, toStation) {
+    return [
+      {lat:fromStation.lat, lng: fromStation.lon},
+      {lat:toStation.lat, lng: toStation.lon}
+    ]
+  }
+
+  function createPolyline(riderCount, stationIds) {
+    var stationIdsSplit = /(\w+-\d+)(\w+-\d+)/.exec(stationIds)
+    var fromStation = stationsById[stationIdsSplit[1]]
+    var toStation = stationsById[stationIdsSplit[2]]
+    var path = getPath(fromStation, toStation)
+
+    polyLines[fromStation.id+toStation.id] = new google.maps.Polyline(
+      getPolylineOptions(path, arrowPct, riderCount)
+    )
+  }
+  _.map(riderCounts, createPolyline)
+
+  window.setInterval(pushArrows, 20);
+  function pushArrows() {
+    arrowPct = (arrowPct + arrowPctStep) % 1;
+    _.each(riderCounts, function(riderCount, stationIds) {
+      var polyline = polyLines[stationIds]
+      polyline.setOptions(
+        getPolylineOptions(
+          polyline.getPath(),
+          arrowPct,
+          riderCount
+        )
+      )
+    })
   }
 };
 
-function renderRoute(map, trip, routeResponse){
-  var directionsDisplay = new google.maps.DirectionsRenderer({
-    map: map,
-    preserveViewport: true,
-    suppressMarkers: true,
-    clickable: false,
-    polylineOptions: {
-      strokeWeight: 0.5,
-      strokeOpacity: 0.9,
-      strokeColor: 'blue',
-      zIndex: 10000
-    }
-  });
-  directionsDisplay.setDirections(routeResponse);
-  document.getElementById('route-info').innerHTML = '\
-  '+trip.fromStationId+'<br/>'+trip.toStationId+'<br/>'+trip.duration
-}
 
 </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAOt84QlJQo1tPQqawpvWdsRvKyFfp9ahA&callback=getDataAndInitMap"
