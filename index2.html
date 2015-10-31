@@ -66,7 +66,7 @@ function initMap(stations) {
   var styles = [
     {
       stylers: [
-        { hue: "white" },
+        { hue: "#00ffe6" },
         { saturation: -20 }
       ]
     },
@@ -74,8 +74,8 @@ function initMap(stations) {
       featureType: "road",
       elementType: "geometry",
       stylers: [
-//         { lightness: 0 },
-//         { visibility: "simplified" }
+        { lightness: 100 },
+        { visibility: "simplified" }
       ]
     },
     {
@@ -93,7 +93,7 @@ function initMap(stations) {
       },
       zoom: 16,
       styles: styles,
-      mapTypeId: google.maps.MapTypeId.TERRAIN,
+//       mapTypeId: google.maps.MapTypeId.TERRAIN,
   });
   var bounds = new google.maps.LatLngBounds(
     new google.maps.LatLng(_.min(stations, 'lat').lat, _.min(stations, 'lon').lon),
@@ -101,8 +101,8 @@ function initMap(stations) {
   );
   map.fitBounds(bounds);
 
-  var bikeLayer = new google.maps.BicyclingLayer();
-  bikeLayer.setMap(map);
+//   var bikeLayer = new google.maps.BicyclingLayer();
+//   bikeLayer.setMap(map);
 
   // Draw stations on the map
   stations.map(function(station) {
@@ -115,7 +115,7 @@ function initMap(stations) {
           title: station.name,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
+            scale: 5,
             strokeColor: colors.prontoGreen,
             strokeOpacity: .9,
             strokeWeight: 2
@@ -129,7 +129,12 @@ function initMap(stations) {
   $.getJSON(
     "data/json/2015_trip_data.json", 
     function(trips) {
-        initAnimation(map, _.map(trips, makeTripUseful), stationsById);
+      $.getJSON(
+        "data/json/trip_paths.json", 
+        function(tripPaths) {
+            initAnimation(map, _.map(trips, makeTripUseful), stationsById, tripPaths);
+        }
+      );
     }
   );
 
@@ -146,7 +151,13 @@ function makeTripUseful(trip) {
   }
 };
 
-function initAnimation(map, trips, stationsById) {
+function initAnimation(map, trips, stationsById, tripPaths) {
+  /*
+  map: a Google Map
+  trips: trip objects passed through makeTripUseful
+  stationsById: stations indexed by station ID
+  tripPaths: arrays of LatLons indexed by pairs of station ID, describing a reasonable route between the stations
+  */
   var trip = trips[0];
 
   
@@ -167,7 +178,8 @@ function initAnimation(map, trips, stationsById) {
   var maxRiders = 10 // Max number of riders to show on one path at a time
   var riderSeparation = 10 // in percent
 
-  function getPolylineOptions(path, offsetFraction, riderCount) {  
+  function getPolylineOptions(path, offsetFraction, riderCount) {
+    var riderCountCiel = Math.min(riderCount, maxRiders)
     var lineSymbol = {
       path: google.maps.SymbolPath.FORWARD_OPEN_ARROW
     };
@@ -177,14 +189,14 @@ function initAnimation(map, trips, stationsById) {
         offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
       }
     }
-    var icons = _.times(Math.min(riderCount, maxRiders), getIcon)
+    var icons = _.times(riderCountCiel, getIcon)
     return {
       map: map,
       path: path,
       clickable: false, // Maybe this will ease some of the rendering load?
       icons: icons,
       strokeColor: colors.prontoDarkBlue,
-      strokeOpacity: 1,
+      strokeOpacity: riderCountCiel * .1,
       strokeWeight: 1,
       visible: riderCount > 0,
     }
@@ -203,10 +215,14 @@ function initAnimation(map, trips, stationsById) {
   }
 
   function getPath(fromStation, toStation) {
-    return [
-      {lat:fromStation.lat, lng: fromStation.lon},
-      {lat:toStation.lat, lng: toStation.lon}
-    ]
+    if (tripPaths[fromStation.id + toStation.id]) {
+      return tripPaths[fromStation.id + toStation.id]
+    } else {
+      return [
+        {lat:fromStation.lat, lng: fromStation.lon},
+        {lat:toStation.lat, lng: toStation.lon}
+      ]
+    }
   }
 
   function createPolyline(riderCount, stationIds) {
