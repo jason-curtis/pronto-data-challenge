@@ -149,19 +149,19 @@ function initAnimation(map, trips, stationsById) {
   var cacheHits = 0
   var cacheMisses = 0
   var apiErrors = 0
-
   
-  function calcRouteLoop(i){
-    if (i < maxTrips){
-      calculateAndDisplayRoute(trips[i], i)
-      setTimeout(calcRouteLoop, delay, i + 1)
+  calculateAndDisplayRoute(0)
+  function calculateAndDisplayRoute(i) {
+    function another(delay, retry){
+      setTimeout(calculateAndDisplayRoute, delay, retry ? i : i+1);
     }
-  }
-  calcRouteLoop(startTrip - 1);
-  function calculateAndDisplayRoute(trip, i) {
+    console.log(i)
+    var trip = trips[i]
+    console.log(trip)
     var fromStation = stationsById[trip.fromStationId];
     var toStation = stationsById[trip.toStationId];
     if (fromStation == toStation) {
+      another(0)
       return;
     }
 
@@ -176,14 +176,17 @@ function initAnimation(map, trips, stationsById) {
         if (status === google.maps.DirectionsStatus.OK) {
           routeCache[fromStation.id + toStation.id] = response;
           renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
+          another(500)
         } else {
-          window.alert('Directions request failed due to ' + status);
+          console.log('Directions request failed due to ' + status);
+          another(2500, true)
         }
       });
     } else {
       cacheHits += 1;
-      console.log('cache hit ' + cacheHits, fromStation, toStation);
+      console.log('cache hit ' + cacheHits);
       renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
+      another(0)
     }
     
   }
@@ -208,7 +211,7 @@ function renderRoute(map, trip, routeResponse){
 }
 
 </script>
-    <script src="https://maps.googleapis.com/maps/api/js?&callback=getDataAndInitMap"
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAOt84QlJQo1tPQqawpvWdsRvKyFfp9ahA&callback=getDataAndInitMap"
         async defer>
 </script>
   </body>
