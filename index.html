@@ -164,18 +164,6 @@ function initAnimation(map, trips, stationsById) {
     if (fromStation == toStation) {
       return;
     }
-    var directionsDisplay = new google.maps.DirectionsRenderer({
-      map: map,
-      preserveViewport: true,
-      suppressMarkers: true,
-      clickable: false,
-      polylineOptions: {
-        strokeWeight: 0.5,
-        strokeOpacity: 0.9,
-        strokeColor: 'blue',
-        zIndex: 10000
-      }
-    });
 
     if (_.isUndefined(routeCache[fromStation.id + toStation.id])) {
       cacheMisses += 1;
@@ -187,8 +175,7 @@ function initAnimation(map, trips, stationsById) {
       }, function(response, status) {
         if (status === google.maps.DirectionsStatus.OK) {
           routeCache[fromStation.id + toStation.id] = response;
-          directionsDisplay.setDirections(routeCache[fromStation.id + toStation.id]);
-          renderRouteInfo(trip);
+          renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
         } else {
           window.alert('Directions request failed due to ' + status);
         }
@@ -196,14 +183,26 @@ function initAnimation(map, trips, stationsById) {
     } else {
       cacheHits += 1;
       console.log('cache hit ' + cacheHits, fromStation, toStation);
-      directionsDisplay.setDirections(routeCache[fromStation.id + toStation.id]);
-      renderRouteInfo(trip);
+      renderRoute(map, trip, routeCache[fromStation.id + toStation.id]);
     }
     
   }
 };
 
-function renderRouteInfo(trip){
+function renderRoute(map, trip, routeResponse){
+  var directionsDisplay = new google.maps.DirectionsRenderer({
+    map: map,
+    preserveViewport: true,
+    suppressMarkers: true,
+    clickable: false,
+    polylineOptions: {
+      strokeWeight: 0.5,
+      strokeOpacity: 0.9,
+      strokeColor: 'blue',
+      zIndex: 10000
+    }
+  });
+  directionsDisplay.setDirections(routeResponse);
   document.getElementById('route-info').innerHTML = '\
   '+trip.fromStationId+'<br/>'+trip.toStationId+'<br/>'+trip.duration
 }
