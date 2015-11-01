@@ -189,20 +189,20 @@ aside {
 
     <div id="controls">
         <div id="charts">
+          <div id="age-chart" class="chart">
+            <div class="title">Rider Age (passholders only)</div>
+          </div>
+          <div id="duration-chart" class="chart">
+            <div class="title">Duration (min.)</div>
+          </div>
           <div id="hour-chart" class="chart">
             <div class="title">Time of Day</div>
           </div>
           <div id="weekday-chart" class="chart">
             <div class="title">Weekday (Saturday first)</div>
           </div>
-          <div id="duration-chart" class="chart">
-            <div class="title">Duration (min.)</div>
-          </div>
           <div id="date-chart" class="chart">
             <div class="title">Date</div>
-          </div>
-          <div id="age-chart" class="chart">
-            <div class="title">Rider Age (passholders only)</div>
           </div>
         </div>
     </div>
@@ -226,6 +226,7 @@ aside {
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 <script>
 
+var riderCounts = {} // Count of riders indexed by startStation.id+endStation.id. This is what glues the crossfilter stuff and the map together.
 $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
 
   // Various formatters.
@@ -288,6 +289,21 @@ $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
   var charts = [
 
     barChart()
+        .dimension(duration)
+        .group(durations)
+      .x(d3.scale.linear()
+        .domain([0, maxDuration + 2])
+        .rangeRound([0, 10 * 40])),
+
+    barChart()
+        .dimension(age)
+        .group(ages)
+      .x(d3.scale.linear()
+        .domain([10, 80])
+        .rangeRound([0, 150])
+      ),
+
+    barChart()
         .dimension(hour)
         .group(hours)
       .x(d3.scale.linear()
@@ -303,28 +319,12 @@ $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
       ),
 
     barChart()
-        .dimension(duration)
-        .group(durations)
-      .x(d3.scale.linear()
-        .domain([0, maxDuration + 2])
-        .rangeRound([0, 10 * 40])),
-
-    barChart()
         .dimension(date)
         .group(dates)
         .round(d3.time.week.round)
       .x(d3.time.scale()
         .domain([new Date(2014, 9, 13), new Date(2015, 9, 16)])
         .rangeRound([0, 10 * 60])),
-
-    barChart()
-        .dimension(age)
-        .group(ages)
-      .x(d3.scale.linear()
-        .domain([10, 80])
-        .rangeRound([0, 150])
-      ),
-
   ];
 
   // Given our array of charts, which we assume are in the same order as the
@@ -333,10 +333,6 @@ $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
   var chart = d3.selectAll(".chart")
       .data(charts)
       .each(function(chart) { chart.on("brush", renderAll).on("brushend", renderAll); });
-
-  // Render the initial lists.
-  var list = d3.selectAll(".list")
-      .data([rideList]);
 
   // Render the total.
   d3.selectAll("#total")
@@ -352,20 +348,8 @@ $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
   // Whenever the brush moves, re-rendering everything.
   function renderAll() {
     chart.each(render);
-    list.each(render);
     d3.select("#active").text(formatNumber(all.value()));
   }
-
-//   function parseDate(d) {
-//     // pronto dates are in the archaic format 10/13/2014 10:31
-//     return new Date(
-//         d.substring(6, 10),
-//         d.substring(0, 2) - 1,
-//         d.substring(3, 5),
-//         d.substring(11, 13),
-//         d.substring(14, 16)
-//     );
-//   }
 
   window.filter = function(filters) {
     filters.forEach(function(d, i) { charts[i].filter(d); });
@@ -376,54 +360,6 @@ $.getJSON("data/json/2015_trip_data.json", function(rawrides) {
     charts[i].filter(null);
     renderAll();
   };
-
-  function rideList(div) {
-    var ridesByDate = nestByDate.entries(date.top(40));
-
-    div.each(function() {
-      var date = d3.select(this).selectAll(".date")
-          .data(ridesByDate, function(d) { return d.key; });
-
-      date.enter().append("div")
-          .attr("class", "date")
-        .append("div")
-          .attr("class", "day")
-          .text(function(d) { return formatDate(d.values[0].date); });
-
-      date.exit().remove();
-
-      var ride = date.order().selectAll(".ride")
-          .data(function(d) { return d.values; }, function(d) { return d.index; });
-
-      var rideEnter = ride.enter().append("div")
-          .attr("class", "ride");
-
-      rideEnter.append("div")
-          .attr("class", "time")
-          .text(function(d) { return formatTime(d.date); });
-
-      rideEnter.append("div")
-          .attr("class", "origin")
-          .text(function(d) { return d.origin; });
-
-      rideEnter.append("div")
-          .attr("class", "destination")
-          .text(function(d) { return d.destination; });
-
-      rideEnter.append("div")
-          .attr("class", "duration")
-          .text(function(d) { return formatNumber(d.duration) + " mi."; });
-
-      rideEnter.append("div")
-          .attr("class", "weekday")
-          .classed("early", function(d) { return d.weekday < 0; })
-          .text(function(d) { return formatChange(d.weekday) + " min."; });
-
-      ride.exit().remove();
-
-      ride.order();
-    });
-  }
 
   function barChart() {
     if (!barChart.id) barChart.id = 0;
@@ -753,14 +689,7 @@ function initAnimation(map, trips, stationsById, tripPaths) {
   
   var directionsService = new google.maps.DirectionsService;
   
-  var delay=500; // milliseconds to prevent hitting Google API limit for the time being
-  var startTrip=10000 // the first several trips are boring :p
-  var maxTrips=10500 // also put a max on this
   var polyLines = {}
-  var riderCounts = {}
-  var cacheHits = 0
-  var cacheMisses = 0
-  var apiErrors = 0
 
   var arrowPct = 0;
   var arrowPctStep = 0.01;
@@ -769,7 +698,7 @@ function initAnimation(map, trips, stationsById, tripPaths) {
   var riderSeparation = 10 // in percent
 
   function getPolylineOptions(path, offsetFraction, riderCount) {
-    var riderCountCiel = Math.min(riderCount, maxRiders)
+    var riderCountCiel = Math.min(riderCount, maxRiders) // The most riders we'll allow ourselves to show on a single polyline
     var lineSymbol = {
       path: google.maps.SymbolPath.FORWARD_OPEN_ARROW
     };
