@@ -13,28 +13,30 @@ html, body {
 }
 #map {
     height: 100%;
-    width: 100%;
+    width: 50%;
+}
+.intro {
+  padding: 2em;
 }
 #controls {
     height: 100%;
     width: 50%;
     position: absolute;
     right: 0px;
-    bottom: 0px;
-}
-#route-info {
-  width: 150px;
-  height: 100px;
-  position: absolute;
-  left: 0;
-  top: 0;
+    top: 0px;
 }
 
+.info-summary {
+    width: 100%;
+    float: left;
+    text-align: center;
+    margin-top: 2em;
+}
 
 /* from Crossfilter */
 
 body {
-  font-family: "Helvetica Neue";
+  font-family: "Helvetica";
 }
 
 #body {
@@ -42,27 +44,14 @@ body {
 }
 
 footer {
+  position: absolute;
+  bottom: 0px;
   padding: 2em 0 1em 0;
   font-size: 12px;
 }
 
-h1 {
-  font-size: 96px;
-  margin-top: .3em;
-  margin-bottom: 0;
-}
-
-h1 + h2 {
-  margin-top: 0;
-}
-
-h2 {
-  font-weight: 400;
-  font-size: 28px;
-}
 
 h1, h2 {
-  font-family: "Yanone Kaffeesatz";
   text-rendering: optimizeLegibility;
 }
 
@@ -74,15 +63,20 @@ h1, h2 {
 
 #charts {
   padding: 10px 0;
-  text-align: right;
+  text-align: center;
 }
 
 .chart {
-  float: right;
-  clear: left;
+  float: left;
+/*   clear: right; */
   height: 151px;
-  margin-bottom: 20px;
-  rgba(0, 0, 0, 0.5);
+  margin-top: 20px;
+  padding: 20px;
+/*   border: 1px solid gainsboro;
+  background-color: rgba(256,256,256,.5); */
+}
+.chart .title {
+  font-weight: bold;
 }
 
 .reset {
@@ -96,7 +90,7 @@ h1, h2 {
 }
 
 .foreground.bar {
-  fill: steelblue;
+   fill: #003B49; /*prontoDarkBlue */
 }
 
 .axis path, .axis line {
@@ -124,7 +118,7 @@ h1, h2 {
 }
 
 #weekday-chart {
-  width: 135px;
+  width: 200px;
 }
 
 #duration-chart {
@@ -139,57 +133,18 @@ h1, h2 {
   width: 150px;
 }
 
-#ride-list {
-  min-height: 1024px;
-}
-
-#ride-list .date,
-#ride-list .day {
-  margin-bottom: .4em;
-}
-
-#ride-list .ride {
-  line-height: 1.5em;
-  background: #eee;
-  width: 640px;
-  margin-bottom: 1px;
-}
-
-#ride-list .time {
-  color: #999;
-}
-
-#ride-list .ride div {
-  display: inline-block;
-  width: 100px;
-}
-
-#ride-list div.duration,
-#ride-list div.weekday {
-  width: 160px;
-  padding-right: 10px;
-  text-align: right;
-}
-
-#ride-list .early {
-  color: green;
-}
-
-aside {
-  position: absolute;
-  left: 740px;
-  font-size: smaller;
-  width: 220px;
-}
 
 </style>
   </head>
   <body>
     <div id="map"></div>
-    <div id="controls"></div>
-    <div id="route-info">route info</div>
+    <div id="route-info"></div>
 
     <div id="controls">
+        <div class="intro">
+        <h1>Pronto Data Explorer</h1>
+        <em>Drag anywhere on the graphs to filter the data set.</em> See what you can learn!
+        </div>
         <div id="charts">
           <div id="duration-chart" class="chart">
             <div class="title">Duration (min.)</div>
@@ -201,22 +156,21 @@ aside {
             <div class="title">Time of Day</div>
           </div>
           <div id="weekday-chart" class="chart">
-            <div class="title">Weekday (Saturday first)</div>
+            <div class="title">Weekday (Monday first)</div>
           </div>
           <div id="date-chart" class="chart">
             <div class="title">Date</div>
           </div>
         </div>
+        <div class="info-summary"><span id="active">-</span> of <span id="total">-</span> rides selected.</div>
+
+    <footer>
+      Mashup Copyright 2015 <a href="https://www.linkedin.com/pub/jason-curtis/38/a88/664">Jason Curtis.</a>
+      - Google says, "Bicycling directions are in beta. Use caution – This route may contain streets that aren't suited for bicycling."
+      - Released under the <a href="http://www.apache.org/licenses/LICENSE-2.0.html">Apache License 2.0</a>.
+    </footer>
     </div>
 
-    <aside id="totals"><span id="active">-</span> of <span id="total">-</span> rides selected.</aside>
-
-<footer>
-  <span style="float:right;">
-    Released under the <a href="http://www.apache.org/licenses/LICENSE-2.0.html">Apache License 2.0</a>.
-  </span>
-  Copyright 2012 <a href="http://squareup.com">Square, Inc.</a>
-</footer>
 
     <script src="js/lib/lodash.min.js">
 </script>
@@ -289,7 +243,9 @@ function initMap(stations) {
       },
       zoom: 16,
       styles: styles,
-//       mapTypeId: google.maps.MapTypeId.TERRAIN,
+       mapTypeId: google.maps.MapTypeId.TERRAIN,
+    
+      disableDefaultUI: true
   });
   var bounds = new google.maps.LatLngBounds(
     new google.maps.LatLng(_.min(stations, 'lat').lat, _.min(stations, 'lon').lon),
@@ -388,7 +344,7 @@ function initCharts(rawRides) {
   var hours = hour.group(Math.floor)
   var weekday = ride.dimension(function(d) {
     // rotate so that the weekend comes first
-    return (d.date.getDay() + 1) % 7;
+    return (d.date.getDay() + 6) % 7;
   })
   var weekdays = weekday.group(function(d) {
     return d;
