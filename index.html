@@ -184,6 +184,7 @@ h1, h2 {
 
 colors = {
   prontoGreen: '#8EDD65',
+  prontoDarkGreen: '#73d540',
   prontoBlue: '#68D2DF',
   prontoDarkBlue: '#003B49'
 }
@@ -234,23 +235,35 @@ function initMap(stations) {
       stylers: [
         { visibility: "off" }
       ]
-    }
+    },
+    {
+      featureType: "water",
+      stylers: [
+      {visibility: "simplified" },
+      
+      {lightness: 100 }
+    ]
+  }
   ];
   var map = new google.maps.Map(document.getElementById('map'),{
       center: {
           lat: 47.6186455,
           lng: -122.3143096
       },
-      zoom: 16,
+      zoom: 14,
       styles: styles,
-       mapTypeId: google.maps.MapTypeId.TERRAIN,
+//        mapTypeId: google.maps.MapTypeId.TERRAIN,
     
       disableDefaultUI: true
   });
   var bounds = new google.maps.LatLngBounds(
-    new google.maps.LatLng(_.min(stations, 'lat').lat, _.min(stations, 'lon').lon),
-    new google.maps.LatLng(_.max(stations, 'lat').lat, _.max(stations, 'lon').lon)
+    {lat: _.min(stations, 'lat').lat, lng: _.min(stations, 'lon').lon},
+    {lat: _.max(stations, 'lat').lat, lng: _.max(stations, 'lon').lon}
+    // ... which happens to be:
+    //     {lat: 47.5984, lng: -122.3552}
+    //     {lat: 47.6661, lng: -122.2841}
   );
+
   map.fitBounds(bounds);
 
 //   var bikeLayer = new google.maps.BicyclingLayer();
@@ -655,28 +668,41 @@ function initAnimation(map, trips, stationsById, tripPaths) {
 
   var maxRiders = 10 // Max number of riders to show on one path at a time
   var riderSeparation = 10 // in percent
+  var magnitudeColors = {
+    0: 'darkgreen',
+//     1: colors.prontoDarkBlue,
+//     2: colors.prontoGreen,
+
+    1: 'yellow',
+    2: 'orange',
+    3: 'red',
+    4: 'red',
+  };
 
   function getPolylineOptions(path, offsetFraction, riderCount) {
     var riderCountCiel = Math.min(riderCount, maxRiders) // The most riders we'll allow ourselves to show on a single polyline
     var lineSymbol = {
       path: google.maps.SymbolPath.FORWARD_OPEN_ARROW
     };
-    function getIcon(riderIndex) {
-      return {
-        icon: lineSymbol,
-        offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
-      }
-    }
-    var icons = _.times(riderCountCiel, getIcon)
+//     function getIcon(riderIndex) {
+//       return {
+//         icon: lineSymbol,
+//         offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
+//       }
+//     }
+//     var icons = _.times(riderCountCiel, getIcon)
     return {
       map: map,
       path: path,
       clickable: false, // Maybe this will ease some of the rendering load?
-      icons: icons,
-      strokeColor: colors.prontoDarkBlue,
-      strokeOpacity: riderCountCiel * .1,
+//       icons: icons,
+      strokeColor: magnitudeColors[
+        Math.floor(Math.log10(riderCount))
+      ],
+      strokeOpacity: riderCountCiel / maxRiders,
       strokeWeight: 1,
       visible: riderCount > 0,
+      zIndex: riderCount
     }
   }
 
