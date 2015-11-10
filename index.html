@@ -4,7 +4,7 @@
     <title>Pronto Data Explorer</title>
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
     <meta charset="utf-8">
-    <link rel="shortcut icon" href="favicon.png"> 
+    <link rel="shortcut icon" href="favicon.png">
     <style>
 
 html, body {
@@ -145,6 +145,9 @@ h1, h2 {
         <div class="intro">
         <h1>Pronto Data Explorer</h1>
         <em>Drag anywhere on the graphs to filter the data set.</em> See what you can learn!
+        <!-- Duration, age, hour, weekday, date. -->
+        <p>Some questions to consider: Where do people take <a href="javascript:filter([[0,5], null, null, null, null])">short rides</a>?
+        <a href="javascript:filter([null, null, [0, 5], null, null])">late at night</a>? How do <a href="javascript:filter([null, null, null, [5,7], null])">weekend</a> rides compare to <a href="javascript:filter([null, null, null, [0,5], null])">weekday</a> ones?</p>
         </div>
         <div id="charts">
           <div id="duration-chart" class="chart">
@@ -165,8 +168,10 @@ h1, h2 {
         </div>
         <div class="info-summary"><span id="active">-</span> of <span id="total">-</span> rides selected.</div>
 
+
     <footer>
       Mashup Copyright 2015 <a href="https://www.linkedin.com/pub/jason-curtis/38/a88/664">Jason Curtis.</a>
+      - Paths shown are guesses based on Google's suggested biking directions.
       - Google says, "Bicycling directions are in beta. Use caution – This route may contain streets that aren't suited for bicycling."
       - Released under the <a href="http://www.apache.org/licenses/LICENSE-2.0.html">Apache License 2.0</a>.
     </footer>
@@ -190,7 +195,7 @@ colors = {
   prontoDarkBlue: '#003B49'
 }
 function makeStationUseful(station) {
-  // Available attrs: 
+  // Available attrs:
   // dockcount: "18"
   // id: "1"
   // lat: "47.618418"
@@ -208,7 +213,7 @@ function makeStationUseful(station) {
 }
 function getDataAndInitMap() {
   $.getJSON(
-    "data/json/2015_station_data.json", 
+    "data/json/2015_station_data.json",
     function(stations) {
         initMap(_.map(stations, makeStationUseful));
     }
@@ -241,7 +246,7 @@ function initMap(stations) {
       featureType: "water",
       stylers: [
       {visibility: "simplified" },
-      
+
       {lightness: 100 }
     ]
   }
@@ -254,7 +259,7 @@ function initMap(stations) {
       zoom: 14,
       styles: styles,
 //        mapTypeId: google.maps.MapTypeId.TERRAIN,
-    
+
       disableDefaultUI: true
   });
   var bounds = new google.maps.LatLngBounds(
@@ -293,10 +298,10 @@ function initMap(stations) {
   _.forEach(stations, function(station) {stationsById[station.id] = station})
 
   $.getJSON(
-    "data/json/2015_trip_data.json", 
+    "data/json/2015_trip_data.json",
     function(trips) {
       $.getJSON(
-        "data/json/trip_paths.json", 
+        "data/json/trip_paths.json",
         function(tripPaths) {
             initAnimation(map, _.map(trips, makeTripUseful), stationsById, tripPaths);
         }
@@ -324,7 +329,7 @@ function initCharts(rawRides) {
 
   // A little coercion, since the input data is untyped.
   var rides = rawRides.map(function(rawRide, i) {
-    // Full list of available attrs: 
+    // Full list of available attrs:
     // trip_id,
     // starttime,
     // stoptime,
@@ -373,6 +378,8 @@ function initCharts(rawRides) {
   // Hook in the real getTripCounts so that the map can grab it
   getTripCounts = function() { return pathIds.reduceCount().all()}
 
+  // Duration, age, hour, weekday, date.
+  // if changing this order, make sure to change the filter links in text.
   var charts = [
 
     barChart()
@@ -642,7 +649,7 @@ function initCharts(rawRides) {
 }
 
 function makeTripUseful(trip) {
-  // Full list of available attrs: 
+  // Full list of available attrs:
   // trip_id,starttime,stoptime,bikeid,tripduration,from_station_name,to_station_name,from_station_id,to_station_id,usertype,gender,birthyear
   // times are in the format "10/13/2014 10:31", God bless America
   return {
@@ -661,7 +668,7 @@ function initAnimation(map, trips, stationsById, tripPaths) {
   */
   var trip = trips[0];
 
-  
+
   var polyLines = {}
 
   var arrowPct = 0; // Stateful value that pushes the arrows forward
