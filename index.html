@@ -12,10 +12,29 @@ html, body {
     margin: 0;
     padding: 0;
 }
-#map {
+#map-container {
     height: 100%;
     width: 50%;
+    position: relative;
 }
+#map {
+    height: 100%;
+    width: 100%;
+}
+#map-key {
+  position: absolute;
+  background-color: rgba(256,256,256, .8);
+  left: 1em;
+  bottom: 1em;
+  border: 1px solid black;
+}
+#map-key div {
+  padding: 3px;
+}
+#map-key .color-box {
+  width: .8em;
+}
+
 .intro {
   padding: 2em;
 }
@@ -25,6 +44,14 @@ html, body {
     position: absolute;
     right: 0px;
     top: 0px;
+}
+#charts-loading{
+  width: 100%;
+  height: 50%;
+  text-align: center;
+  padding-top: 20%;
+  font-size: 3em;
+  color: gray;
 }
 
 .info-summary {
@@ -138,8 +165,10 @@ h1, h2 {
 </style>
   </head>
   <body>
-    <div id="map"></div>
-    <div id="route-info"></div>
+    <div id="map-container">
+      <div id="map">Loading map...</div>
+      <div id="map-key">Loading key...</div>
+    </div>
 
     <div id="controls">
         <div class="intro">
@@ -149,7 +178,8 @@ h1, h2 {
         <p>Some questions to consider: Where do people take <a href="javascript:filter([[0,5], null, null, null, null])">short rides</a>?
         <a href="javascript:filter([null, null, [0, 5], null, null])">late at night</a>? How do <a href="javascript:filter([null, null, null, [5,7], null])">weekend</a> rides compare to <a href="javascript:filter([null, null, null, [0,5], null])">weekday</a> ones?</p>
         </div>
-        <div id="charts">
+        <div id="charts-loading">Loading Controls...</div>
+        <div id="charts" style="display: none;">
           <div id="duration-chart" class="chart">
             <div class="title">Duration (min.)</div>
           </div>
@@ -428,6 +458,10 @@ function initCharts(rawRides) {
       .data(charts)
       .each(function(chart) { chart.on("brush", renderAll).on("brushend", renderAll); });
 
+  // Graphs are here; don't need this anymore.
+  d3.selectAll('#charts').style('display', 'block');
+  // Graphs are here; don't need this anymore.
+  d3.selectAll('#charts-loading').style('display', 'none');
   // Render the total.
   d3.selectAll("#total")
       .text(formatNumber(ride.size()));
@@ -684,8 +718,14 @@ function initAnimation(map, trips, stationsById, tripPaths) {
     1: 'yellow',
     2: 'orange',
     3: 'red',
-    4: 'red',
+    // 4: 'red',
   };
+  var mapKeyContents = '<title>Route Colors</title><div><em>Key</em></div>' +
+  _(magnitudeColors).keys().sortBy().map(function(i) {
+    var iNum = Number(i)
+    return '<div><span style="color:'+magnitudeColors[i]+'">&#x25A0;</span>' + Math.pow(10, iNum) + '-' + (Math.pow(10, iNum + 1) - 1) + ' rides</div>'
+  }).join('\n');
+  d3.select('#map-key').html(mapKeyContents);
 
   function getPolylineOptions(path, offsetFraction, riderCount) {
     var riderCountCiel = Math.min(riderCount, maxRiders) // The most riders we'll allow ourselves to show on a single polyline
@@ -707,7 +747,7 @@ function initAnimation(map, trips, stationsById, tripPaths) {
       strokeColor: magnitudeColors[
         Math.floor(Math.log10(riderCount))
       ],
-      strokeOpacity: riderCountCiel / maxRiders,
+      // strokeOpacity: riderCountCiel / maxRiders,
       strokeWeight: 1,
       visible: riderCount > 0,
       zIndex: riderCount
