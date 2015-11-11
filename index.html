@@ -34,6 +34,9 @@ html, body {
 #map-key .color-box {
   width: .8em;
 }
+#animate-control {
+  opacity: 0.5;
+}
 
 .intro {
   padding: 2em;
@@ -749,26 +752,29 @@ function initAnimation(map, trips, stationsById, tripPaths) {
   _(magnitudeColors).keys().sortBy().map(function(i) {
     var iNum = Number(i)
     return '<div><span style="color:'+magnitudeColors[i]+'">&#x25A0;</span>' + Math.pow(10, iNum) + '-' + (Math.pow(10, iNum + 1) - 1) + ' rides</div>'
-  }).join('\n');
+  }).join('\n') + '<div id="animate-control" title="your CPU will not thank you for this. Use only with a small data set."><input type="checkbox" id="animate">animate!</div>';
   d3.select('#map-key').html(mapKeyContents);
 
-  function getPolylineOptions(path, offsetFraction, riderCount) {
+  function getPolylineOptions(path, offsetFraction, riderCount, animate) {
     var riderCountCiel = Math.min(riderCount, maxRiders) // The most riders we'll allow ourselves to show on a single polyline
     var lineSymbol = {
       path: google.maps.SymbolPath.FORWARD_OPEN_ARROW
     };
-//     function getIcon(riderIndex) {
-//       return {
-//         icon: lineSymbol,
-//         offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
-//       }
-//     }
-//     var icons = _.times(riderCountCiel, getIcon)
+    var icons;
+    if (animate) {
+      function getIcon(riderIndex) {
+        return {
+          icon: lineSymbol,
+          offset: (offsetFraction*100 + riderSeparation * riderIndex) % 100 + '%',
+        }
+      }
+      icons = _.times(riderCountCiel, getIcon)
+    }
     return {
       map: map,
       path: path,
       clickable: false, // Maybe this will ease some of the rendering load?
-//       icons: icons,
+      icons: icons,
       strokeColor: magnitudeColors[
         Math.floor(Math.log10(riderCount))
       ],
@@ -818,6 +824,7 @@ function initAnimation(map, trips, stationsById, tripPaths) {
 
   window.setInterval(pushArrows, 500);
   function pushArrows() {
+    var animate = $('#animate')[0].checked;
     arrowPct = (arrowPct + arrowPctStep) % 1;
     _.each(getTripCounts(), function(tripCount) {
       var stationIds = tripCount.key;
@@ -834,7 +841,8 @@ function initAnimation(map, trips, stationsById, tripPaths) {
         getPolylineOptions(
           polyline.getPath(),
           arrowPct,
-          riderCount
+          riderCount,
+          animate
         )
       )
     })
