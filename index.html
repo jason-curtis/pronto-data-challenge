@@ -170,7 +170,7 @@ h1, h2 {
             <div class="title">Time of Day</div>
           </div>
           <div id="weekday-chart" class="chart">
-            <div class="title">Weekday (Monday first)</div>
+            <div class="title">Weekday</div>
           </div>
           <div id="date-chart" class="chart">
             <div class="title">Date</div>
@@ -414,6 +414,18 @@ function initCharts(rawRides, stationsById) {
   // Hook in the real getTripCounts so that the map can grab it
   getTripCounts = function() { return pathIds.reduceCount().all()}
 
+  function weekdayFormat(d) {
+    return {
+      0: 'M',
+      1: 'T',
+      2: 'W',
+      3: 'Th',
+      4: 'F',
+      5: 'S',
+      6: 'Su',
+    }[d]
+  }
+
   // Duration, age, gain, hour, weekday, date.
   // if changing this order, make sure to change the filter links in text.
   var charts = [
@@ -451,6 +463,7 @@ function initCharts(rawRides, stationsById) {
     barChart()
         .dimension(weekday)
         .group(weekdays)
+      .axis(d3.svg.axis().orient("bottom").tickFormat(weekdayFormat))
       .x(d3.scale.linear()
         .domain([0, 7])
         .rangeRound([0, 10 * 11])
@@ -661,6 +674,12 @@ function initCharts(rawRides, stationsById) {
     chart.y = function(_) {
       if (!arguments.length) return y;
       y = _;
+      return chart;
+    };
+
+    chart.axis = function(_) {
+      if (!arguments.length) return axis;
+      axis = _;
       return chart;
     };
 
