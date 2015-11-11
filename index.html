@@ -90,13 +90,11 @@ h1, h2 {
 }
 
 #charts {
-  padding: 10px 0;
   text-align: center;
 }
 
 .chart {
-  float: left;
-/*   clear: right; */
+  display: inline-block;
   height: 151px;
   margin-top: 20px;
   padding: 20px;
@@ -141,50 +139,32 @@ h1, h2 {
   stroke: #666;
 }
 
-#hour-chart {
-  width: 260px;
-}
-
-#weekday-chart {
-  width: 200px;
-}
-
-#duration-chart {
-  width: 420px;
-}
-
-#date-chart {
-  width: 620px;
-}
-
-#age-chart {
-  width: 150px;
-}
-
-
 </style>
   </head>
   <body>
     <div id="map-container">
       <div id="map">Loading map...</div>
-      <div id="map-key">Loading key...</div>
+      <div id="map-key">Loading map data...</div>
     </div>
 
     <div id="controls">
         <div class="intro">
         <h1>Pronto Data Explorer</h1>
         <em>Drag anywhere on the graphs to filter the data set.</em> See what you can learn!
-        <!-- Duration, age, hour, weekday, date. -->
-        <p>Some questions to consider: Where do people take <a href="javascript:filter([[0,5], null, null, null, null])">short rides</a>?
-        <a href="javascript:filter([null, null, [0, 5], null, null])">late at night</a>? How do <a href="javascript:filter([null, null, null, [5,7], null])">weekend</a> rides compare to <a href="javascript:filter([null, null, null, [0,5], null])">weekday</a> ones?</p>
+        <!-- Duration, age, gain, hour, weekday, date. -->
+        <p>Some questions to consider: Where do people take <a href="javascript:filter([[0,5], null, null, null, null, null])">short rides</a>?
+        <a href="javascript:filter([null, null, null, [0, 5], null, null])">late at night</a>? How do <a href="javascript:filter([null, null, null, null, [5,7], null])">weekend</a> rides compare to <a href="javascript:filter([null, null, null, null, [0,5], null])">weekday</a> ones?</p>
         </div>
-        <div id="charts-loading">Loading Controls...</div>
+        <div id="charts-loading">Loading Ride Data...</div>
         <div id="charts" style="display: none;">
           <div id="duration-chart" class="chart">
-            <div class="title">Duration (min.)</div>
+            <div class="title">Duration<br>(minutes)</div>
           </div>
           <div id="age-chart" class="chart">
-            <div class="title">Rider Age (passholders only)</div>
+            <div class="title" title="when selected, only passholder rides will be visible">Rider Age<br>(passholders only)</div>
+          </div>
+          <div id="elevation-chart" class="chart">
+            <div class="title">Elevation Gain<br>(ft.)</div>
           </div>
           <div id="hour-chart" class="chart">
             <div class="title">Time of Day</div>
@@ -233,17 +213,19 @@ function makeStationUseful(station) {
   // name: "3rd Ave & Broad St"
   // online: "10/13/2014"
   // terminal: "BT-01"
+  // elevation: 123.4 # in feet
 
   return {
       lat: Number(station.lat),
       lon: Number(station.long),
       name: station.name,
+      elevation: station.elevation,
       id: station.terminal
   }
 }
 function getDataAndInitMap() {
   $.getJSON(
-    "data/json/2015_station_data.json",
+    "data/json/stations_with_elevation.json",
     function(stations) {
         initMap(_.map(stations, makeStationUseful));
     }
@@ -327,6 +309,16 @@ function initMap(stations) {
   var stationsById = {};
   _.forEach(stations, function(station) {stationsById[station.id] = station})
 
+  function makeTripUseful(trip) {
+    // Full list of available attrs:
+    // trip_id,starttime,stoptime,bikeid,tripduration,from_station_name,to_station_name,from_station_id,to_station_id,usertype,gender,birthyear
+    // times are in the format "10/13/2014 10:31", God bless America
+    return {
+      fromStationId: trip.from_station_id,
+      toStationId: trip.to_station_id,
+      duration: Number(trip.tripduration),
+    }
+  };
   $.getJSON(
     "data/json/2015_trip_data.json",
     function(trips) {
@@ -336,7 +328,7 @@ function initMap(stations) {
             initAnimation(map, _.map(trips, makeTripUseful), stationsById, tripPaths);
         }
       );
-      initCharts(trips);
+      initCharts(trips, stationsById);
     }
   );
 
@@ -348,14 +340,15 @@ function getTripCounts(){
   return []
 }
 
-function initCharts(rawRides) {
-
+function initCharts(rawRides, stationsById) {
   // Various formatters.
   var formatNumber = d3.format(",d"),
       formatChange = d3.format("+,d"),
       formatDate = d3.time.format("%B %d, %Y"),
       formatTime = d3.time.format("%I:%M %p"),
       parseDate = d3.time.format('%m/%d/%Y %H:%M').parse;
+  // Hacky way to get some data to not show up
+  var offTheChart = 999999;
 
   // A little coercion, since the input data is untyped.
   var rides = rawRides.map(function(rawRide, i) {
@@ -373,17 +366,28 @@ function initCharts(rawRides) {
     // gender,
     // birthyear
     // times are in the format "10/13/2014 10:31", God bless America
+
+    var fromStation = stationsById[rawRide.from_station_id]
+    var toStation = stationsById[rawRide.to_station_id]
+    // ignore stations we don't like
+    var elevationGainMeters = (fromStation && toStation) ? (toStation.elevation - fromStation.elevation) : offTheChart
+    var feetToMeters = 3.281;
     return {
       index: i,
       date: parseDate(rawRide.starttime),
       weekday: 1,
       duration: +rawRide.tripduration,
       age: 2015 - (+rawRide.birthyear),
-      pathId: rawRide.from_station_id + rawRide.to_station_id
+      pathId: rawRide.from_station_id + rawRide.to_station_id,
+      elevationGain: elevationGainMeters * feetToMeters,
     }
   });
 
   var maxDuration = 60;
+  function quantize(value, precision) {
+    return Math.floor(value / precision) * precision
+  }
+
   // Create the crossfilter for the relevant dimensions and groups.
   var ride = crossfilter(rides);
   var all = ride.groupAll();
@@ -399,25 +403,27 @@ function initCharts(rawRides) {
     return d;
   })
   var duration = ride.dimension(function(d) { return Math.min(maxDuration, d.duration/60); })
-  var durations = duration.group(function(d) { return Math.floor(d); });
+  var durations = duration.group(function(d) { return quantize(d, 5); });
   var age = ride.dimension(function(d) { return d.age; })
-  var ages = age.group(function(d) { return Math.floor(d / 5) * 5; });
+  var ages = age.group(function(d) { return quantize(d, 5);});
+  var elevationGain = ride.dimension(function(d) {return d.elevationGain});
+  var elevationGains = elevationGain.group(function(d) { return quantize(d, 50); });
   var pathId = ride.dimension(function(d) { return d.pathId; })
   var pathIds = pathId.group(function(d) { return d; });
 
   // Hook in the real getTripCounts so that the map can grab it
   getTripCounts = function() { return pathIds.reduceCount().all()}
 
-  // Duration, age, hour, weekday, date.
+  // Duration, age, gain, hour, weekday, date.
   // if changing this order, make sure to change the filter links in text.
   var charts = [
 
-    barChart()
+    barChart(5)
         .dimension(duration)
         .group(durations)
       .x(d3.scale.linear()
         .domain([0, maxDuration + 2])
-        .rangeRound([0, 10 * 40])),
+        .rangeRound([0, 150])),
 
     barChart()
         .dimension(age)
@@ -425,6 +431,14 @@ function initCharts(rawRides) {
       .x(d3.scale.linear()
         .domain([10, 80])
         .rangeRound([0, 150])
+      ),
+
+    barChart(4)
+        .dimension(elevationGain)
+        .group(elevationGains)
+      .x(d3.scale.linear()
+        .domain([-400, 400])
+        .rangeRound([-0, 180])
       ),
 
     barChart()
@@ -489,14 +503,14 @@ function initCharts(rawRides) {
     renderAll();
   };
 
-  function barChart() {
+  function barChart(nTicks) {
     if (!barChart.id) barChart.id = 0;
 
     var margin = {top: 10, right: 10, bottom: 20, left: 10},
         x,
         y = d3.scale.linear().range([100, 0]),
         id = barChart.id++,
-        axis = d3.svg.axis().orient("bottom"),
+        axis = d3.svg.axis().orient("bottom").ticks(nTicks),
         brush = d3.svg.brush(),
         brushDirty,
         dimension,
@@ -507,7 +521,9 @@ function initCharts(rawRides) {
       var width = x.range()[1],
           height = y.range()[0];
 
-      y.domain([0, group.top(1)[0].value]);
+      // To make things exciting, use the second-largest value to control the y scale
+      // That way a single outlier won't make the graph look terrible
+      y.domain([0, group.top(2)[1].value]);
 
       div.each(function() {
         var div = d3.select(this),
@@ -682,16 +698,6 @@ function initCharts(rawRides) {
   }
 }
 
-function makeTripUseful(trip) {
-  // Full list of available attrs:
-  // trip_id,starttime,stoptime,bikeid,tripduration,from_station_name,to_station_name,from_station_id,to_station_id,usertype,gender,birthyear
-  // times are in the format "10/13/2014 10:31", God bless America
-  return {
-    fromStationId: trip.from_station_id,
-    toStationId: trip.to_station_id,
-    duration: Number(trip.tripduration),
-  }
-};
 
 function initAnimation(map, trips, stationsById, tripPaths) {
   /*
