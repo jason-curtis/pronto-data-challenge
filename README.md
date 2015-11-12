@@ -1,6 +1,6 @@
 # Pronto Data Explorer
 
-This is my submission to the [Pronto Data Challenge 2015](http://www.prontocycleshare.com/datachallenge). It's a data exploration tool, which allows the user to interactively filter the data while the shape of the data is shown on several graphs and a heatmap. Play with it [here](thatneat.github.io/pronto-data-challenge/)!
+This is my submission to the [Pronto Data Challenge 2015](http://www.prontocycleshare.com/datachallenge). It's a data exploration tool, which allows the user to interactively filter the data while the shape of the data is shown on several graphs and a heatmap. Play with it [here](http://thatneat.github.io/pronto-data-challenge/)!
 
 The map is built using the Google Maps API and the live filtering uses the impressive [Crossfilter](https://square.github.io/crossfilter/) in-browser filtering tool by Square.
 
